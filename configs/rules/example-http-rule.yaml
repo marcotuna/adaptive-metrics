@@ -1,0 +1,37 @@
+# Example aggregation rule for HTTP request metrics
+id: "http-requests-aggregation"
+name: "HTTP Requests Aggregation"
+description: "Aggregate HTTP request metrics by status code and method"
+enabled: true
+
+# Matcher defines which metrics this rule applies to
+matcher:
+  metric_names:
+    - "http_requests_total"
+  labels:
+    app: "my-service"
+  label_regex:
+    endpoint: "^/api/.*"
+
+# Aggregation defines how metrics should be aggregated
+aggregation:
+  # Aggregation type: sum, avg, min, max, count
+  type: "sum"
+  # Aggregation interval in seconds
+  interval_seconds: 60
+  # Labels to segment metrics by during aggregation
+  segmentation:
+    - "status_code"
+    - "method"
+  # Delay in milliseconds before aggregation to account for late-arriving samples
+  delay_ms: 5000
+
+# Output defines how the aggregated metrics should be produced
+output:
+  # The name of the aggregated metric
+  metric_name: "http_requests_aggregated"
+  # Additional labels to add to the aggregated metric
+  additional_labels:
+    aggregated_by: "adaptive_metrics"
+  # Whether to drop original metrics after aggregation
+  drop_original: false

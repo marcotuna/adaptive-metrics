@@ -1,0 +1,57 @@
+# Example aggregation rule with Kubernetes monitor modifications
+id: "http-requests-aggregation-example"
+name: "HTTP Requests Aggregation with ServiceMonitor Modification"
+description: "Aggregate HTTP request metrics by status code and method, and update existing ServiceMonitor"
+enabled: true
+
+# Matcher defines which metrics this rule applies to
+matcher:
+  metric_names:
+    - "http_requests_total"
+  labels:
+    app: "my-service"
+  label_regex:
+    endpoint: "^/api/.*"
+
+# Aggregation defines how metrics should be aggregated
+aggregation:
+  # Aggregation type: sum, avg, min, max, count
+  type: "sum"
+  # Aggregation interval in seconds
+  interval_seconds: 60
+  # Labels to segment metrics by during aggregation
+  segmentation:
+    - "status_code"
+    - "method"
+  # Delay in milliseconds before aggregation to account for late-arriving samples
+  delay_ms: 5000
+
+# Output defines how the aggregated metrics should be produced
+output:
+  # The name of the aggregated metric
+  metric_name: "http_requests_aggregated"
+  # Additional labels to add to the aggregated metric
+  additional_labels:
+    aggregated_by: "adaptive_metrics"
+  # Whether to drop original metrics after aggregation
+  drop_original: false
+
+# Kubernetes output configuration for modifying an existing ServiceMonitor
+output_kubernetes:
+  enabled: true
+  # The type of resource to modify
+  resource_type: "ServiceMonitor"
+  # Use "modify" mode to update an existing monitor
+  mode: "modify"
+  # Namespace where the monitor is located
+  namespace: "monitoring"
+  # Name of the existing monitor to modify
+  existing_monitor_name: "my-service-monitor"
+  # Whether to drop the original high-cardinality metrics
+  drop_original_metrics: true
+  # The original metrics to drop (if empty, will use metrics from matcher)
+  original_metric_names:
+    - "http_requests_total"
+  # Port and path configuration (optional, only needed if different from existing)
+  port: "http-metrics"
+  path: "/metrics"

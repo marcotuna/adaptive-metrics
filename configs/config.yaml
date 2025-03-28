@@ -1,0 +1,59 @@
+# Adaptive Metrics Configuration
+
+# Server configuration
+server:
+  # HTTP server address
+  address: ":8080"
+  # Timeout in seconds for reading request data
+  read_timeout_seconds: 30
+  # Timeout in seconds for writing response data
+  write_timeout_seconds: 30
+
+# Aggregator configuration
+aggregator:
+  # Maximum number of metrics to buffer in memory
+  batch_size: 1000
+  # Delay in milliseconds before aggregating metrics (to account for late-arriving samples)
+  aggregation_delay_ms: 60000  # 60 seconds
+  # Number of worker goroutines processing metrics
+  worker_count: 5
+  # Path to the directory containing rule definitions
+  rules_path: "configs/rules"
+
+# Storage configuration
+storage:
+  # Storage type: "memory" or "redis"
+  type: "memory"
+  # Connection string for storage (if needed)
+  connection: ""
+
+# Grafana plugin configuration
+plugin:
+  # Whether to enable the Grafana plugin integration
+  enabled: false
+  # URL for the Grafana API
+  api_url: "http://localhost:3000/api"
+  # Authentication token for Grafana API
+  auth_token: ""
+
+# Remote write configuration
+remote_write:
+  # Whether to enable remote write functionality
+  enabled: false
+  # List of Prometheus remote write endpoint URLs
+  endpoints: []
+  # Authentication (optional)
+  username: ""
+  password: ""
+  # Custom HTTP headers to include in the remote write requests (optional)
+  headers: {}
+  # Maximum number of retry attempts for failed requests
+  max_retries: 3
+  # Interval in seconds between retry attempts
+  retry_interval_seconds: 30
+  # Maximum number of metrics to batch in a single remote write request
+  batch_size: 1000
+  # Timeout in seconds for remote write requests
+  timeout_seconds: 30
+  # If true, only metrics from applied recommendations will be remote written
+  recommendation_metrics_only: true
