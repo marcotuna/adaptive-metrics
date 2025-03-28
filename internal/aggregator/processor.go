@@ -5,12 +5,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/marcotuna/adaptive-metrics/internal/api"
 	"github.com/marcotuna/adaptive-metrics/internal/config"
 	"github.com/marcotuna/adaptive-metrics/internal/models"
 	"github.com/marcotuna/adaptive-metrics/internal/rules"
+	"github.com/marcotuna/adaptive-metrics/internal/types"
 	"github.com/marcotuna/adaptive-metrics/pkg/remote"
 )
+
+// MetricTracker defines the interface that aggregator requires from API handlers
+type MetricTracker interface {
+	TrackMetric(name string, labels map[string]string, value float64)
+}
 
 // Processor handles metric aggregation based on rules
 type Processor struct {
@@ -22,9 +27,12 @@ type Processor struct {
 	outputCh     chan *models.AggregatedMetric
 	workerWg     sync.WaitGroup
 	stopCh       chan struct{}
-	apiHandler   *api.Handler // Reference to API handler for usage tracking
+	apiHandler   MetricTracker  // Interface used for usage tracking
 	remoteWriter *remote.Client // Remote write client
 }
+
+// Ensure Processor implements the MetricProcessor interface
+var _ types.MetricProcessor = (*Processor)(nil)
 
 // aggregationBucket represents a collection of metrics being aggregated
 type aggregationBucket struct {
@@ -35,7 +43,7 @@ type aggregationBucket struct {
 }
 
 // NewProcessor creates a new metrics aggregation processor
-func NewProcessor(cfg *config.Config, ruleEngine *rules.Engine, apiHandler *api.Handler) (*Processor, error) {
+func NewProcessor(cfg *config.Config, ruleEngine *rules.Engine, apiHandler MetricTracker) (*Processor, error) {
 	processor := &Processor{
 		cfg:        cfg,
 		ruleEngine: ruleEngine,
@@ -130,7 +138,7 @@ func (p *Processor) worker() {
 // processSample processes a single metric sample
 func (p *Processor) processSample(sample *models.MetricSample) {
 	// Find matching rules
-	matchingRules := p.ruleEngine.Matcher.MatchingRules(sample)
+	matchingRules := p.ruleEngine.FindMatchingRules(sample)
 	for _, rule := range matchingRules {
 		// Create bucket key from rule ID and interval
 		bucketKey := fmt.Sprintf("%s-%d", rule.ID, rule.Aggregation.IntervalSeconds)

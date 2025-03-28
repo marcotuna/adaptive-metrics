@@ -57,3 +57,16 @@ remote_write:
   timeout_seconds: 30
   # If true, only metrics from applied recommendations will be remote written
   recommendation_metrics_only: true
+
+# Logging configuration
+logging:
+  # Format for logs: "json" or "text"
+  format: "json"
+  # Minimum log level: "debug", "info", "warn", "error"
+  level: "info"
+  # Whether to include timestamps in logs
+  include_timestamp: true
+  # Whether to include caller information in logs
+  include_caller: false
+  # Optional file path for logs (if not set, logs to stdout)
+  file: ""

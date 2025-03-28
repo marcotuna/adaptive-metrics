@@ -28,7 +28,7 @@ func NewEngine(cfg *config.Config) (*Engine, error) {
 		cfg:   cfg,
 		rules: make(map[string]*models.Rule),
 	}
-	
+
 	// Initialize rule matcher
 	engine.matcher = NewMatcher(engine)
 
@@ -43,7 +43,7 @@ func NewEngine(cfg *config.Config) (*Engine, error) {
 // loadRulesFromDisk loads rule definitions from disk
 func (e *Engine) loadRulesFromDisk() error {
 	rulesPath := e.cfg.Aggregator.RulesPath
-	
+
 	// Check if directory exists
 	if _, err := os.Stat(rulesPath); os.IsNotExist(err) {
 		// Create the directory if it doesn't exist
@@ -115,7 +115,7 @@ func (e *Engine) UpdateRule(rule *models.Rule) error {
 	e.ruleMu.RLock()
 	_, exists := e.rules[rule.ID]
 	e.ruleMu.RUnlock()
-	
+
 	if !exists {
 		return fmt.Errorf("rule with ID %s does not exist", rule.ID)
 	}
@@ -140,7 +140,7 @@ func (e *Engine) DeleteRule(id string) error {
 	e.ruleMu.RLock()
 	rule, exists := e.rules[id]
 	e.ruleMu.RUnlock()
-	
+
 	if !exists {
 		return fmt.Errorf("rule with ID %s does not exist", id)
 	}
@@ -153,7 +153,7 @@ func (e *Engine) DeleteRule(id string) error {
 	// Remove from disk
 	rulesPath := e.cfg.Aggregator.RulesPath
 	rulePath := filepath.Join(rulesPath, fmt.Sprintf("%s.yaml", rule.ID))
-	
+
 	if err := os.Remove(rulePath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to delete rule file: %w", err)
 	}
@@ -165,12 +165,12 @@ func (e *Engine) DeleteRule(id string) error {
 func (e *Engine) GetRule(id string) (*models.Rule, error) {
 	e.ruleMu.RLock()
 	defer e.ruleMu.RUnlock()
-	
+
 	rule, exists := e.rules[id]
 	if !exists {
 		return nil, fmt.Errorf("rule with ID %s does not exist", id)
 	}
-	
+
 	return rule, nil
 }
 
@@ -178,19 +178,29 @@ func (e *Engine) GetRule(id string) (*models.Rule, error) {
 func (e *Engine) GetRules() ([]*models.Rule, error) {
 	e.ruleMu.RLock()
 	defer e.ruleMu.RUnlock()
-	
+
 	rules := make([]*models.Rule, 0, len(e.rules))
 	for _, rule := range e.rules {
 		rules = append(rules, rule)
 	}
-	
+
 	return rules, nil
+}
+
+// FindMatchingRules returns all rules that match a given metric sample
+func (e *Engine) FindMatchingRules(sample *models.MetricSample) []*models.Rule {
+	return e.matcher.MatchingRules(sample)
+}
+
+// AddRule adds a new rule (implements the RuleStore interface)
+func (e *Engine) AddRule(rule models.Rule) error {
+	return e.SaveRule(&rule)
 }
 
 // saveRuleToDisk persists a rule to disk
 func (e *Engine) saveRuleToDisk(rule *models.Rule) error {
 	rulesPath := e.cfg.Aggregator.RulesPath
-	
+
 	// Create the directory if it doesn't exist
 	if _, err := os.Stat(rulesPath); os.IsNotExist(err) {
 		if err := os.MkdirAll(rulesPath, 0755); err != nil {

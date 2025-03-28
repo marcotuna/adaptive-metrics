@@ -11,7 +11,6 @@ import (
 	"text/template"
 
 	"github.com/marcotuna/adaptive-metrics/internal/models"
-	"gopkg.in/yaml.v3"
 )
 
 // Generator creates Kubernetes monitor resources for metrics
@@ -76,8 +75,8 @@ func (g *Generator) generateNewMonitor(rule *models.Rule) (string, error) {
 
 	// Prepare data for template
 	data := map[string]interface{}{
-		"Rule":             rule,
-		"K8sConfig":        rule.OutputKubernetes,
+		"Rule":              rule,
+		"K8sConfig":         rule.OutputKubernetes,
 		"MetricRelabelings": metricRelabelings,
 	}
 
@@ -89,13 +88,13 @@ func (g *Generator) generateNewMonitor(rule *models.Rule) (string, error) {
 
 	// Write to file if output directory is specified
 	if g.outputDir != "" {
-		filename := filepath.Join(g.outputDir, fmt.Sprintf("%s-%s.yaml", 
+		filename := filepath.Join(g.outputDir, fmt.Sprintf("%s-%s.yaml",
 			rule.OutputKubernetes.ResourceType, rule.ID))
-		
+
 		if err := ioutil.WriteFile(filename, buf.Bytes(), 0644); err != nil {
 			return "", fmt.Errorf("failed to write file: %w", err)
 		}
-		
+
 		return filename, nil
 	}
 
@@ -134,8 +133,8 @@ func (g *Generator) modifyExistingMonitor(rule *models.Rule) (string, error) {
 
 	// Prepare data for template
 	data := map[string]interface{}{
-		"Rule":             rule,
-		"K8sConfig":        config,
+		"Rule":              rule,
+		"K8sConfig":         config,
 		"MetricRelabelings": metricRelabelings,
 	}
 
@@ -147,13 +146,13 @@ func (g *Generator) modifyExistingMonitor(rule *models.Rule) (string, error) {
 
 	// Write to file if output directory is specified
 	if g.outputDir != "" {
-		filename := filepath.Join(g.outputDir, fmt.Sprintf("modified-%s-%s.yaml", 
+		filename := filepath.Join(g.outputDir, fmt.Sprintf("modified-%s-%s.yaml",
 			config.ResourceType, config.ExistingMonitorName))
-		
+
 		if err := ioutil.WriteFile(filename, buf.Bytes(), 0644); err != nil {
 			return "", fmt.Errorf("failed to write file: %w", err)
 		}
-		
+
 		return filename, nil
 	}
 

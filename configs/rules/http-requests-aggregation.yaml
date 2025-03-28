@@ -1,0 +1,22 @@
+id: http-requests-aggregation
+name: HTTP Requests Aggregation
+description: Aggregate HTTP request metrics by status code and method
+enabled: true
+created_at: 0001-01-01T00:00:00Z
+updated_at: 2025-03-28T16:02:01.00779458Z
+matcher:
+    metric_names:
+        - batatas
+        - couves
+        - alfaces
+    labels: {}
+    label_regex: {}
+aggregation:
+    type: sum
+    interval_seconds: 60
+    segmentation: []
+    delay_ms: 0
+output:
+    metric_name: laranjas
+    additional_labels: {}
+    drop_original: false

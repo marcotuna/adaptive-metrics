@@ -1,0 +1,25 @@
+id: http-requests-aggregation-example
+name: HTTP Requests Aggregation with ServiceMonitor Modification
+description: Aggregate HTTP request metrics by status code and method, and update existing ServiceMonitor
+enabled: true
+created_at: 0001-01-01T00:00:00Z
+updated_at: 2025-03-28T16:02:03.399171016Z
+matcher:
+    metric_names:
+        - http_requests_total
+    labels: {}
+    label_regex: {}
+aggregation:
+    type: sum
+    interval_seconds: 60
+    segmentation:
+        - status_code
+        - method
+    delay_ms: 0
+output:
+    metric_name: http_requests_aggregated
+    additional_labels: {}
+    drop_original: false
+    keep_labels:
+        - status_code
+        - method

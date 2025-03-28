@@ -12,9 +12,29 @@ import (
 	"github.com/marcotuna/adaptive-metrics/internal/metrics"
 	"github.com/marcotuna/adaptive-metrics/internal/models"
 	"github.com/marcotuna/adaptive-metrics/internal/rules"
+	"github.com/marcotuna/adaptive-metrics/internal/types"
 	"github.com/marcotuna/adaptive-metrics/pkg/kubernetes"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+// CORSMiddleware adds CORS headers to responses
+func CORSMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Set CORS headers for all responses
+		w.Header().Set("Access-Control-Allow-Origin", "*") // In production, replace with your specific domain
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		// Handle preflight requests
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		// Call the next handler
+		next.ServeHTTP(w, r)
+	})
+}
 
 // RuleStore interface for rule storage operations
 type RuleStore interface {
@@ -27,14 +47,17 @@ type RuleStore interface {
 
 // Handler handles HTTP API requests
 type Handler struct {
-	cfg                  *config.Config
-	ruleEngine           *rules.Engine
-	usageTracker         *metrics.UsageTracker
-	recommendationEngine *metrics.RecommendationEngine
-	recommendationStore  *RecommendationStore
+	cfg                   *config.Config
+	ruleEngine            *rules.Engine
+	usageTracker          *metrics.UsageTracker
+	recommendationEngine  *metrics.RecommendationEngine
+	recommendationStore   *RecommendationStore
 	recommendationHandler *RecommendationHandler
-	processor            *aggregator.Processor
+	processor             *aggregator.Processor
 }
+
+// Ensure Handler implements the MetricTracker interface
+var _ types.MetricTracker = (*Handler)(nil)
 
 // NewHandler creates a new API handler
 func NewHandler(cfg *config.Config) (*Handler, error) {
@@ -49,9 +72,9 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 	// Create recommendation engine
 	recommendationEngine := metrics.NewRecommendationEngine(
 		usageTracker,
-		1000,       // Minimum sample threshold
-		100,        // Minimum cardinality threshold
-		0.5,        // Minimum confidence
+		1000, // Minimum sample threshold
+		100,  // Minimum cardinality threshold
+		0.5,  // Minimum confidence
 	)
 
 	// Create recommendation store
@@ -66,39 +89,45 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 		recommendationStore:  recommendationStore,
 	}
 
+	// Create rule engine adapter
+	ruleEngineAdapter := NewRuleEngineAdapter(ruleEngine)
+
 	// Create and set recommendation handler
 	h.recommendationHandler = NewRecommendationHandler(
 		recommendationStore,
 		usageTracker,
 		recommendationEngine,
-		h.ruleEngine,
+		ruleEngineAdapter,
 	)
 
 	return h, nil
 }
 
 // SetProcessor sets the metric processor for the handler
-func (h *Handler) SetProcessor(processor *aggregator.Processor) {
-	h.processor = processor
-	// Also set the processor for the recommendation handler
-	if h.recommendationHandler != nil {
-		h.recommendationHandler.SetProcessor(processor)
+func (h *Handler) SetProcessor(processor types.MetricProcessor) {
+	// Convert to concrete type if needed
+	if concreteProcessor, ok := processor.(*aggregator.Processor); ok {
+		h.processor = concreteProcessor
+		// Also set the processor for the recommendation handler
+		if h.recommendationHandler != nil {
+			h.recommendationHandler.SetProcessor(concreteProcessor)
+		}
 	}
 }
 
 // HealthCheck handles health check requests
 func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	// Include remote write status in health check
 	remoteWriteStatus := "disabled"
 	if h.cfg.RemoteWrite.Enabled {
 		remoteWriteStatus = "enabled"
 	}
-	
+
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status": "ok",
-		"time":   time.Now().Format(time.RFC3339),
+		"status":       "ok",
+		"time":         time.Now().Format(time.RFC3339),
 		"remote_write": remoteWriteStatus,
 	})
 }
@@ -217,17 +246,21 @@ func (h *Handler) TrackMetric(name string, labels map[string]string, value float
 }
 
 // GetRuleEngine returns the rule engine instance
-func (h *Handler) GetRuleEngine() *rules.Engine {
+func (h *Handler) GetRuleEngine() interface{} {
 	return h.ruleEngine
 }
 
 // SetupRecommendationRoutes sets up the routes for the recommendation API
 func (h *Handler) SetupRecommendationRoutes(router *mux.Router) {
-	router.HandleFunc("/api/v1/recommendations", h.recommendationHandler.ListRecommendations).Methods("GET")
-	router.HandleFunc("/api/v1/recommendations/{id}", h.recommendationHandler.GetRecommendation).Methods("GET")
-	router.HandleFunc("/api/v1/recommendations/{id}/apply", h.recommendationHandler.ApplyRecommendation).Methods("POST")
-	router.HandleFunc("/api/v1/recommendations/{id}/reject", h.recommendationHandler.RejectRecommendation).Methods("POST")
-	router.HandleFunc("/api/v1/recommendations/generate", h.recommendationHandler.GenerateRecommendations).Methods("POST")
+	router.HandleFunc("/recommendations", h.recommendationHandler.ListRecommendations).Methods("GET", "OPTIONS")
+	router.HandleFunc("/recommendations/{id}", h.recommendationHandler.GetRecommendation).Methods("GET", "OPTIONS")
+	router.HandleFunc("/recommendations/{id}/apply", h.recommendationHandler.ApplyRecommendation).Methods("POST", "OPTIONS")
+	router.HandleFunc("/recommendations/{id}/reject", h.recommendationHandler.RejectRecommendation).Methods("POST", "OPTIONS")
+	router.HandleFunc("/recommendations/generate", h.recommendationHandler.GenerateRecommendations).Methods("POST", "OPTIONS")
+
+	// Add new endpoints for metrics usage data
+	router.HandleFunc("/metrics-usage", h.recommendationHandler.ListMetricsUsage).Methods("GET", "OPTIONS")
+	router.HandleFunc("/metrics-usage/{name}", h.recommendationHandler.GetMetricUsage).Methods("GET", "OPTIONS")
 }
 
 // KubernetesMonitor generates Kubernetes monitoring resources

@@ -7,22 +7,22 @@ import (
 
 // MetricUsageInfo stores usage information for a specific metric
 type MetricUsageInfo struct {
-	MetricName        string
-	Labels            map[string]string
-	SampleCount       int64
-	LastSeen          time.Time
-	FirstSeen         time.Time
-	Cardinality       int
-	LabelCardinality  map[string]int // Maps label keys to their cardinality
-	MinValue          float64
-	MaxValue          float64
-	SumValue          float64
+	MetricName       string
+	Labels           map[string]string
+	SampleCount      int64
+	LastSeen         time.Time
+	FirstSeen        time.Time
+	Cardinality      int
+	LabelCardinality map[string]int // Maps label keys to their cardinality
+	MinValue         float64
+	MaxValue         float64
+	SumValue         float64
 }
 
 // UsageTracker tracks usage information for metrics
 type UsageTracker struct {
 	mu              sync.RWMutex
-	metricsUsage    map[string]*MetricUsageInfo // Tracks usage by metric name
+	metricsUsage    map[string]*MetricUsageInfo            // Tracks usage by metric name
 	detailedUsage   map[string]map[string]*MetricUsageInfo // Tracks usage by metric name + label hash
 	retentionPeriod time.Duration
 	lastCleanup     time.Time
@@ -65,11 +65,6 @@ func (ut *UsageTracker) TrackMetric(name string, labels map[string]string, value
 	info.MaxValue = max(info.MaxValue, value)
 	info.SumValue += value
 
-	// Update label cardinality 
-	for k := range labels {
-		info.LabelCardinality[k]++
-	}
-
 	// Track detailed usage with label combinations
 	labelHash := hashLabels(labels)
 	if _, exists := ut.detailedUsage[name]; !exists {
@@ -87,6 +82,27 @@ func (ut *UsageTracker) TrackMetric(name string, labels map[string]string, value
 			MinValue:    value,
 			MaxValue:    value,
 			SumValue:    0,
+		}
+
+		// Update label cardinality only when we see a new unique combination
+		for k, v := range labels {
+			// Initialize tracking structures for this label if needed
+			if _, exists := info.LabelCardinality[k]; !exists {
+				info.LabelCardinality[k] = 0
+			}
+
+			// Check if this is a new value for this label
+			isNewValue := true
+			for existingHash, existingInfo := range ut.detailedUsage[name] {
+				if existingHash != labelHash && existingInfo.Labels[k] == v {
+					isNewValue = false
+					break
+				}
+			}
+
+			if isNewValue {
+				info.LabelCardinality[k]++
+			}
 		}
 	}
 
@@ -107,7 +123,7 @@ func (ut *UsageTracker) TrackMetric(name string, labels map[string]string, value
 func (ut *UsageTracker) GetMetricInfo(name string) *MetricUsageInfo {
 	ut.mu.RLock()
 	defer ut.mu.RUnlock()
-	
+
 	return ut.metricsUsage[name]
 }
 
@@ -115,12 +131,12 @@ func (ut *UsageTracker) GetMetricInfo(name string) *MetricUsageInfo {
 func (ut *UsageTracker) GetAllMetricsInfo() map[string]*MetricUsageInfo {
 	ut.mu.RLock()
 	defer ut.mu.RUnlock()
-	
+
 	result := make(map[string]*MetricUsageInfo, len(ut.metricsUsage))
 	for k, v := range ut.metricsUsage {
 		result[k] = v
 	}
-	
+
 	return result
 }
 
@@ -128,14 +144,14 @@ func (ut *UsageTracker) GetAllMetricsInfo() map[string]*MetricUsageInfo {
 func (ut *UsageTracker) cleanup() {
 	cutoff := time.Now().Add(-ut.retentionPeriod)
 	ut.lastCleanup = time.Now()
-	
+
 	for metricName, metricInfo := range ut.metricsUsage {
 		if metricInfo.LastSeen.Before(cutoff) {
 			delete(ut.metricsUsage, metricName)
 			delete(ut.detailedUsage, metricName)
 			continue
 		}
-		
+
 		// Clean up individual label combinations
 		if details, exists := ut.detailedUsage[metricName]; exists {
 			for labelHash, detailInfo := range details {
